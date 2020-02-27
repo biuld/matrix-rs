@@ -5,10 +5,13 @@ use crossterm::{
   terminal, ExecutableCommand, QueueableCommand, Result,
 };
 use lib::snake::Snake;
-use std::io::{stdout, Write};
+use std::io::{stdout, Stdout, Write};
 use std::time::Duration;
 
-fn main() -> Result<()> {
+fn wrapper<F>(f: F) -> Result<()>
+where
+  F: FnOnce(&mut Stdout) -> Result<()>,
+{
   let mut stdout = stdout();
 
   //preset the window
@@ -18,6 +21,19 @@ fn main() -> Result<()> {
     .execute(terminal::Clear(terminal::ClearType::All))?
     .execute(cursor::Hide)?;
 
+  f(&mut stdout)?;
+
+  //cleaning up
+  terminal::disable_raw_mode()?;
+  stdout
+    .execute(cursor::Show)?
+    .execute(terminal::Clear(terminal::ClearType::All))?
+    .execute(terminal::LeaveAlternateScreen)?;
+
+  Ok(())
+}
+
+fn matrix(stdout: &mut Stdout) -> Result<()> {
   let (col, row) = terminal::size().unwrap();
 
   let mut snakes: Vec<Snake> = Vec::with_capacity(col as usize);
@@ -52,7 +68,7 @@ fn main() -> Result<()> {
 
     stdout.flush()?;
 
-    if poll(Duration::from_millis(80))? {
+    if poll(Duration::from_millis(100))? {
       match read()? {
         Event::Key(KeyEvent { code, modifiers: _ }) => match code {
           KeyCode::Char('q') | KeyCode::Esc => break,
@@ -65,12 +81,9 @@ fn main() -> Result<()> {
     stdout.execute(terminal::Clear(terminal::ClearType::All))?;
   }
 
-  //cleaning up
-  terminal::disable_raw_mode()?;
-  stdout
-    .execute(cursor::Show)?
-    .execute(terminal::Clear(terminal::ClearType::All))?
-    .execute(terminal::LeaveAlternateScreen)?;
-
   Ok(())
+}
+
+fn main() -> Result<()> {
+  wrapper(matrix)
 }
